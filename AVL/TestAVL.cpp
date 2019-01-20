@@ -8,6 +8,8 @@ clock_t start, end;
 
 BOOST_AUTO_TEST_CASE(myTestCase)
 {
-  BOOST_TEST(1 == 1);
-  BOOST_TEST(true);
+	AVL<int> a;
+	a.insert(12);
+	BOOST_TEST(1 == 1);
+	BOOST_TEST(true);
 }
