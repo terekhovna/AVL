@@ -1,6 +1,7 @@
 #pragma once
 #include <stdexcept>
 #include <algorithm>
+#include <cmath>
 using std::logic_error;
 using std::max;
 using std::swap;
@@ -44,11 +45,11 @@ public:
 	}
 	void erase(Key key)
 	{
-		erase(node::find(root, key));
+		erase(find(key));
 	}
 	void erase(const AVL<Key>::iterator &it)
 	{
-		erase(it.data);
+		root = node::erase(root, it.data);
 	}
 	AVL<Key> split(Key key);
 	void merge(AVL<Key>&& other)
@@ -58,25 +59,14 @@ public:
 	}
 	AVL(std::initializer_list<Key>);
 	AVL() = default;
+	~AVL()
+	{
+		if (root)
+			delete root;
+	}
 private:
 	node* root{ nullptr };
-	void erase(node* vertex)
-	{
-		if (vertex == nullptr)
-			throw logic_error("you delete null");
-		node* tmp = node::getParent(vertex);
-		node::erase(vertex);
-		balance(tmp);
-	}
-	void balance(node* vertex)
-	{
-		if (node::getParent(vertex) == nullptr)
-			root = node::balance(vertex);
-		else
-		{
-			balance(node::balanceSons(node::getParent(vertex)));
-		}
-	}
+
 };
 
 template<typename Key>
@@ -97,6 +87,10 @@ public:
 		data = node::prevVertex(data);
 		return *this;
 	}
+	Key operator*()
+	{
+		return data->value;
+	}
 };
 
 template<typename Key>
@@ -105,7 +99,7 @@ struct AVL<Key>::node
 private:
 	node *left{ nullptr };
 	node *right{ nullptr };
-	size_t hight{ 0 };
+	int hight{ 0 };
 	node* pr{ nullptr };
 public:
 	Key value;
@@ -147,9 +141,9 @@ public:
 	static node* rotateLeft(node *vertex)
 	{
 		if (vertex == nullptr)
-			throw logic_error("rotateRight nullvertex");
+			throw logic_error("rotateLeft nullvertex");
 		if (getRight(vertex) == nullptr)
-			throw logic_error("rotateRight nullvertexRightSon");
+			throw logic_error("rotateLeft nullvertexRightSon");
 
 		node* tmp = getRight(vertex);
 		vertex->change_right(getLeft(tmp));
@@ -165,12 +159,25 @@ public:
 				getHight(getRight(vertex))) + 1;
 		}
 	}
-	static size_t balanceFactor(node *vertex)
+	static int balanceFactor(node *vertex)
 	{
 		return getHight(getRight(vertex)) - getHight(getLeft(vertex));
 	}
-	static node* merge(node *first, node *second, node* middle);
-	static node* merge(node *first, node *second);
+	static node* merge(node *first, node *second, const Key &middle);
+	static node* merge(node *first, node *second)
+	{
+		if (first)
+		{
+			Key tmp = findMax(first)->value;
+			return merge(erase(first, findMax(first)), second, tmp);
+		}
+		if (second)
+		{
+			Key tmp = findMin(second)->value;
+			return merge(first, erase(second, findMin(second)), tmp);
+		}
+		return nullptr;
+	}
 	static node* find(node *vertex, const Key &key)
 	{
 		if (!vertex)
@@ -181,13 +188,48 @@ public:
 			return find(getRight(vertex), key);
 		return vertex;
 	}
-	static node* extract(node *vertex)
+	static node* erase(node* root, node *vertex)
 	{
-		//        if(node::getLeft(vertex) != nullptr || node::getRight(vertex))
-		//        {
-		//            vertex->value = node::findMax(node::getLeft(vertex));
-		//            vertex->change_left(node::removeMax(node::getLeft(vertex)));
-		//        }
+		if (vertex == nullptr)
+			throw logic_error("you delete null");
+		if (getLeft(vertex))
+		{
+			vertex->value = findMax(getLeft(vertex))->value;
+			vertex->change_left(erase(getLeft(vertex), findMax(getLeft(vertex))));
+			return balance(root, vertex);
+		}
+		if (getRight(vertex))
+		{
+			vertex->value = findMin(getLeft(vertex))->value;
+			vertex->change_right(erase(getRight(vertex), findMin(getRight(vertex))));
+			return balance(root, vertex);
+		}
+		if (vertex == root)
+		{
+			delete vertex;
+			return nullptr;
+		}
+		node* tmp = getParent(vertex);
+		eraseSon(tmp, vertex);
+		delete vertex;
+		return balance(root, tmp);
+	}
+	static void eraseSon(node* vertex, node* son)
+	{
+		if (getLeft(vertex) == son)
+			vertex->change_left(nullptr);
+		else
+			vertex->change_right(nullptr);
+		recalculate(vertex);
+	}
+	static node* balance(node* root, node* vertex)
+	{
+		if (abs(balanceFactor(vertex)) < 2)
+			return root;
+		if (vertex != root)
+			return balance(root, balanceSons(getParent(vertex)));
+		else
+			return balance(vertex);
 	}
 	static node* insert(node *vertex, const Key &key)
 	{
@@ -209,7 +251,6 @@ public:
 	}
 	static node* balance(node *vertex)
 	{
-		recalculate(vertex);//--?
 		if (balanceFactor(vertex) == -2)
 		{
 			if (balanceFactor(getLeft(vertex)) > 0)
@@ -226,11 +267,11 @@ public:
 	}
 	static node* balanceSons(node *vertex)
 	{
-		vertex->changeLeft(balance(getLeft(vertex)));
-		vertex->changeRight(balance(getRight(vertex)));
+		vertex->change_left(balance(getLeft(vertex)));
+		vertex->change_right(balance(getRight(vertex)));
 		return vertex;
 	}
-	static size_t getHight(node *vertex)
+	static int getHight(node *vertex)
 	{
 		return vertex ? vertex->hight : 0;
 	}
@@ -260,7 +301,7 @@ public:
 		else
 			return vertex;
 	}
-	node* lowerBound(node *vertex, const Key &key)
+	static node* lowerBound(node *vertex, const Key &key)
 	{
 		if (!vertex)
 			return nullptr;
@@ -297,5 +338,12 @@ public:
 			throw logic_error("prev_ver nullptr");
 		vertex = getLeft(vertex) ? vertex : upRight(vertex);
 		return getLeft(vertex) ? find_max(getLeft(vertex)) : vertex;
+	}
+	~node()
+	{
+		if (left)
+			delete left;
+		if (right)
+			delete right;
 	}
 };

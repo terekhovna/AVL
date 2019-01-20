@@ -10,6 +10,9 @@ BOOST_AUTO_TEST_CASE(myTestCase)
 {
 	AVL<int> a;
 	a.insert(12);
-	BOOST_TEST(1 == 1);
-	BOOST_TEST(true);
+	a.insert(15);
+	a.insert(30);
+	BOOST_CHECK_EQUAL(*a.lower_bound(12), 12);
+	a.erase(12);
+	BOOST_CHECK_EQUAL(*a.lower_bound(12), 15);
 }
