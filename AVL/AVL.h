@@ -1,8 +1,9 @@
 #pragma once
+#include<exception>
+using std::logic_error;
 
-template<
-	typename Key
-> class AVL
+template<typename Key>
+class AVL
 {
 	struct node;
 public:
@@ -20,13 +21,17 @@ public:
 	void merge(AVL<Key>&& other);
 private:
 	node* root = nullptr;
-	balance(node *vertex);
-	get_hight(node *vertex);
-	get_left(node *vertex);
-	get_right(node *vertex);
-	right_turn(node *vertex);
-	left_turn(node *vertex);
-	const AVL<Key>::iterator end_{nullptr};
+	void merge(AVL<Key>::node *vertex, AVL<Key>::node *vertex);
+	AVL<Key>::node* balance(AVL<Key>::node *vertex);
+	AVL<Key>::node*	get_hight(AVL<Key>::node *vertex);
+	AVL<Key>::node*	get_left(AVL<Key>::node *vertex);
+	AVL<Key>::node*	get_right(AVL<Key>::node *vertex);
+	AVL<Key>::node*	right_turn(AVL<Key>::node *vertex);
+	AVL<Key>::node* left_turn(AVL<Key>::node *vertex);
+	AVL<Key>::node* find_min(AVL<Key>::node *vertex);
+	AVL<Key>::node* find_max(AVL<Key>::node *vertex);
+	AVL<Key>::node* next_ver(AVL<Key>::node *vertex);
+	AVL<Key>::node* prev_ver(AVL<Key>::node *vertex);
 };
 
 template<typename Key>
@@ -34,7 +39,8 @@ struct AVL<Key>::node
 {
 	node *left{nullptr};
 	node *right{ nullptr };
-	size_t hight{ -1 };
+	size_t hight{ 0 }, sz{ 0 };
+	node* pr{nullptr};
 	Key value;
 };
 
@@ -90,18 +96,31 @@ AVL<Key>::iterator AVL<Key>::upper_bound(Key key)
 template<typename Key>
 AVL<Key>::iterator AVL<Key>::begin()
 {
-	node *tc = root;
-	if (tc == nullptr)
-		return end();
-	while (get_left(tc) != nullptr)
-		tc = tc.left;
-	return AVL<Key>::iterator(tc);
+	return AVL<Key>::iterator(find_min(root));
 }
 
 template<typename Key>
-inline AVL<Key>::iterator AVL<Key>::end()
+AVL<Key>::node * AVL<Key>::find_min(AVL<Key>::node *vertex)
 {
-	return end_;
+	AVL<Key>::node *tc = vertex;
+	while (get_left(tc) != nullptr)
+		tc = tc->left;
+	return tc;
+}
+
+template<typename Key>
+AVL<Key>::node * AVL<Key>::find_max(AVL<Key>::node *vertex)
+{
+	AVL<Key>::node *tc = vertex;
+	while (get_right(tc) != nullptr)
+		tc = tc->right;
+	return tc;
+}
+
+template<typename Key>
+AVL<Key>::iterator AVL<Key>::end()
+{
+	return AVL<Key>::iterator(nullptr);
 }
 
 template<typename Key>
@@ -129,4 +148,44 @@ AVL<Key> AVL<Key>::split(Key key)
 template<typename Key>
 void AVL<Key>::merge(AVL<Key>&& other)
 {
+}
+
+template<typename Key>
+AVL<Key>::node * AVL<Key>::next_ver(AVL<Key>::node *vertex)
+{
+	if (!vertex)
+		throw logic_error("next_ver nullll");
+	if (vertex->right != nullptr)
+	{
+		return find_min(vertex->right);
+	}
+	else
+	{
+		for (AVL<Key>::node* tc = vertex; tc->pr != nullptr; tc = tc->pr)
+		{
+			if (tc->pr->left == tc)
+				return tc->pr->right ? find_min(tc->pr->right) : tc->pr;
+		}
+		return nullptr;
+	}
+}
+
+template<typename Key>
+AVL<Key>::node * AVL<Key>::prev_ver(AVL<Key>::node *vertex)
+{
+	if (!vertex)
+		throw logic_error("prev_ver nullll");
+	if (vertex->left != nullptr)
+	{
+		return find_max(vertex->left);
+	}
+	else
+	{
+		for (AVL<Key>::node* tc = vertex; tc->pr != nullptr; tc = tc->pr)
+		{
+			if (tc->pr->right == tc)
+				return tc->pr->left ? find_max(tc->pr->left) : tc->pr;
+		}
+		return nullptr;
+	}
 }
