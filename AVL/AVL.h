@@ -4,7 +4,8 @@
 #include <cmath>
 using std::logic_error;
 using std::max;
-using std::swap;
+using std::pair;
+using std::ostream;
 
 template<typename Key>
 class AVL
@@ -39,11 +40,11 @@ public:
 	{
 		return iterator{ nullptr };
 	}
-	void insert(Key key)
+	void insert(const Key &key)
 	{
 		root = node::insert(root, key);
 	}
-	void erase(Key key)
+	void erase(const Key &key)
 	{
 		erase(find(key));
 	}
@@ -51,32 +52,48 @@ public:
 	{
 		root = node::erase(root, it.data);
 	}
-	AVL<Key> split(Key key);
+	AVL<Key> split(const Key &key)
+	{
+		pair<node*, node*> tmp = node::split(root, key);
+		root = tmp.first;
+		return std::move(AVL<Key>{tmp.second});
+	}
 	void merge(AVL<Key>&& other)
 	{
 		root = node::merge(root, other.root);
 		new (&other) AVL<Key>();
 	}
-	AVL(std::initializer_list<Key>);
+	AVL(std::initializer_list<Key>);//
 	AVL() = default;
+	AVL(const AVL<Key>&) = delete;
+	AVL(AVL<Key>&& Avl)
+	{	
+		if (this == &Avl)
+			return;
+		root = Avl.root;
+		new (&Avl) AVL<Key>();
+	}
 	~AVL()
 	{
 		if (root)
 			delete root;
 	}
 private:
+	explicit AVL(node* root) : root(root)
+	{
+	}
 	node* root{ nullptr };
-
 };
 
 template<typename Key>
 class AVL<Key>::iterator
 {
-public:
+	friend AVL<Key>;
 	node* data{ nullptr };
 	explicit iterator(node* data = nullptr) : data(data)
 	{
 	};
+public:
 	iterator operator++()
 	{
 		data = node::nextVertex(data);
@@ -87,9 +104,21 @@ public:
 		data = node::prevVertex(data);
 		return *this;
 	}
-	Key operator*()
+	Key operator*() const
 	{
 		return data->value;
+	}
+	bool operator==(const AVL<Key>::iterator &it) const
+	{
+		return data == it.data;
+	}
+	bool operator!=(const AVL<Key>::iterator &it) const
+	{
+		return !(*this == it);
+	}
+	friend ostream& operator<<(ostream &s, const AVL<Key>::iterator &it)
+	{
+		return s << *it;
 	}
 };
 
@@ -103,9 +132,12 @@ private:
 	node* pr{ nullptr };
 public:
 	Key value;
-	explicit node(Key value = Key{}, node *left = nullptr, node *right = nullptr, node* pr = nullptr)
-		: value(value), left(left), right(right), pr(pr) //--?
+	explicit node(Key value = Key{}, node *left = nullptr, node *right = nullptr, node* parent = nullptr)
+		: value(value)
 	{
+		change_left(left);
+		change_right(right);
+		change_parent(this, parent);
 		recalculate(this);
 	}
 	void change_right(node *vertex)
@@ -163,7 +195,30 @@ public:
 	{
 		return getHight(getRight(vertex)) - getHight(getLeft(vertex));
 	}
-	static node* merge(node *first, node *second, const Key &middle);
+	static node* merge(node *first, node *second, const Key &middle)
+	{
+		if (getHight(first) > getHight(second))
+		{
+			node* tc = first;
+			while (getHight(getLeft(tc)) > getHight(second))
+				tc = getLeft(tc);
+			if (getHight(tc) == getHight(second))
+				tc = getParent(tc);
+			tc->change_left(new node(middle, getLeft(tc), second));
+			return balance(first, tc);
+		}
+		if (getHight(first) < getHight(second))
+		{
+			node* tc = second;
+			while (getHight(getRight(tc)) > getHight(first))
+				tc = getRight(tc);
+			if (getHight(tc) == getHight(first))
+				tc = getParent(tc);
+			tc->change_right(new node(middle, getRight(tc), second));
+			return balance(second, tc);
+		}
+		return new node(middle, first, second); 
+	}
 	static node* merge(node *first, node *second)
 	{
 		if (first)
@@ -177,6 +232,29 @@ public:
 			return merge(first, erase(second, findMin(second)), tmp);
 		}
 		return nullptr;
+	}
+	static pair<node*, node*> split(node *vertex, const Key &key)
+	{
+		if (vertex == nullptr)
+			return { nullptr, nullptr };
+
+		pair<node*, node*> tmp{ eraseSon(vertex, getLeft(vertex)),
+							   eraseSon(vertex, getRight(vertex)) };
+		Key middle = vertex->value; //--?
+		delete vertex;
+
+		if (middle <= key)
+		{
+			pair<node*, node*> tmp2 = split(tmp.second, key);
+			return { merge(tmp.first, tmp2.first, middle),
+					tmp2.second };
+		}
+		else
+		{
+			pair<node*, node*> tmp2 = split(tmp.first, key);
+			return { tmp2.first,
+					merge(tmp2.second, tmp.second, middle) };
+		}
 	}
 	static node* find(node *vertex, const Key &key)
 	{
@@ -195,13 +273,15 @@ public:
 		if (getLeft(vertex))
 		{
 			vertex->value = findMax(getLeft(vertex))->value;
-			vertex->change_left(erase(getLeft(vertex), findMax(getLeft(vertex))));
+			vertex->change_left(erase(getLeft(vertex),
+									  findMax(getLeft(vertex))));
 			return balance(root, vertex);
 		}
 		if (getRight(vertex))
 		{
-			vertex->value = findMin(getLeft(vertex))->value;
-			vertex->change_right(erase(getRight(vertex), findMin(getRight(vertex))));
+			vertex->value = findMin(getRight(vertex))->value;
+			vertex->change_right(erase(getRight(vertex), 
+									   findMin(getRight(vertex))));
 			return balance(root, vertex);
 		}
 		if (vertex == root)
@@ -214,13 +294,15 @@ public:
 		delete vertex;
 		return balance(root, tmp);
 	}
-	static void eraseSon(node* vertex, node* son)
+	static node* eraseSon(node* vertex, node* son)
 	{
 		if (getLeft(vertex) == son)
 			vertex->change_left(nullptr);
 		else
 			vertex->change_right(nullptr);
 		recalculate(vertex);
+		change_parent(son, nullptr);
+		return son;
 	}
 	static node* balance(node* root, node* vertex)
 	{
