@@ -13,30 +13,30 @@ class AVL
 	struct node;
 public:
 	class iterator;
-	iterator find(const Key &key)
+	iterator find(const Key &key) const
 	{
 		return iterator(node::find(root, key));
 	}
-	size_t count(const Key &key)
+	size_t count(const Key &key) const
 	{
 		return (size_t)(find(key) != end());
 	}
-	iterator lower_bound(const Key &key)
+	iterator lower_bound(const Key &key) const
 	{
 		return iterator{ node::lowerBound(root, key) };
 	}
-	iterator upper_bound(const Key &key)
+	iterator upper_bound(const Key &key) const
 	{
 		if (count(key))
 			return ++lower_bound(key);
 		else
 			return lower_bound(key);
 	}
-	iterator begin()
+	iterator begin() const
 	{
 		return iterator{ node::findMin(root) };
 	}
-	iterator end()
+	iterator end() const
 	{
 		return iterator{ nullptr };
 	}
@@ -51,6 +51,10 @@ public:
 	void erase(const AVL<Key>::iterator &it)
 	{
 		root = node::erase(root, it.data);
+	}
+	bool checkBalance() const
+	{
+		return node::checkHight(root);
 	}
 	AVL<Key> split(const Key &key)
 	{
@@ -106,6 +110,8 @@ public:
 	}
 	Key operator*() const
 	{
+		if (!data)
+			throw logic_error("i'm end iterator!!!");
 		return data->value;
 	}
 	bool operator==(const AVL<Key>::iterator &it) const
@@ -197,25 +203,25 @@ public:
 	}
 	static node* merge(node *first, node *second, const Key &middle)
 	{
-		if (getHight(first) > getHight(second))
-		{
-			node* tc = first;
-			while (getHight(getLeft(tc)) > getHight(second))
-				tc = getLeft(tc);
-			if (getHight(tc) == getHight(second))
-				tc = getParent(tc);
-			tc->change_left(new node(middle, getLeft(tc), second));
-			return balance(first, tc);
-		}
 		if (getHight(first) < getHight(second))
 		{
 			node* tc = second;
-			while (getHight(getRight(tc)) > getHight(first))
-				tc = getRight(tc);
+			while (getHight(getLeft(tc)) > getHight(first))
+				tc = getLeft(tc);
 			if (getHight(tc) == getHight(first))
 				tc = getParent(tc);
-			tc->change_right(new node(middle, getRight(tc), second));
+			tc->change_left(new node(middle, first, getLeft(tc)));
 			return balance(second, tc);
+		}
+		if (getHight(first) > getHight(second))
+		{
+			node* tc = first;
+			while (getHight(getRight(tc)) > getHight(second))
+				tc = getRight(tc);
+			if (getHight(tc) == getHight(second))
+				tc = getParent(tc);
+			tc->change_right(new node(middle, getRight(tc), second));
+			return balance(first, tc);
 		}
 		return new node(middle, first, second); 
 	}
@@ -306,8 +312,6 @@ public:
 	}
 	static node* balance(node* root, node* vertex)
 	{
-		if (abs(balanceFactor(vertex)) < 2)
-			return root;
 		if (vertex != root)
 			return balance(root, balanceSons(getParent(vertex)));
 		else
@@ -411,15 +415,23 @@ public:
 	{
 		if (vertex == nullptr)
 			throw logic_error("next_ver nullptr");
-		vertex = getRight(vertex) ? vertex : upLeft(vertex);
-		return getRight(vertex) ? find_min(getRight(vertex)) : vertex;
+		return getRight(vertex) ? findMin(getRight(vertex)) : upLeft(vertex);
 	}
 	static node* prevVertex(node *vertex)
 	{
 		if (vertex == nullptr)
 			throw logic_error("prev_ver nullptr");
-		vertex = getLeft(vertex) ? vertex : upRight(vertex);
-		return getLeft(vertex) ? find_max(getLeft(vertex)) : vertex;
+		return getLeft(vertex) ? findMax(getLeft(vertex)) : upRight(vertex);
+	}
+	static bool checkHight(node *vertex)
+	{
+		if (!vertex)
+			return true;
+		auto tmp = getHight(vertex);
+		recalculate(vertex);
+		bool f = (tmp == getHight(vertex));
+		f &= abs(balanceFactor(vertex)) < 2;
+		return (f && checkHight(getLeft(vertex)) && checkHight(getRight(vertex)));
 	}
 	~node()
 	{
