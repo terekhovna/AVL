@@ -1,6 +1,6 @@
 #define BOOST_TEST_MODULE mytests
 #include <boost/test/included/unit_test.hpp>
-#include<ctime>
+#include <ctime>
 #include "AVL.h"
 #include "Random.h"
 #include <algorithm>
@@ -70,7 +70,8 @@ void checkwithSimple(const BST<T> &h, const Simple_BST<T> &g, T M = T{})
 			if (g.count(tmp))
 			{
 				checkIterator(h, ++h.find(tmp), g, ++g.find(tmp));
-				checkIterator(h, --h.find(tmp), g, --g.find(tmp));
+				if (g.find(tmp) != g.begin())
+					checkIterator(h, --h.find(tmp), g, --g.find(tmp));
 			}
 			checkIterator(h, h.lower_bound(tmp), g, g.lower_bound(tmp));
 			checkIterator(h, h.upper_bound(tmp), g, g.upper_bound(tmp));
